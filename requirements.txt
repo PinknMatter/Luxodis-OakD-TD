@@ -1,0 +1,4 @@
+blobconverter
+opencv-python
+depthai
+numpy

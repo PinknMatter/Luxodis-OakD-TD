@@ -1,0 +1,6 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<Root>
+  <COMP name='depth_python' type='python'></COMP>
+  <COMP name='video_in' type='moviein'></COMP>
+  <COMP name='depth_out' type='top'></COMP>
+</Root>
