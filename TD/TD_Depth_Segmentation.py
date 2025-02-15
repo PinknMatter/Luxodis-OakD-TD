@@ -1,9 +1,9 @@
 import depthai as dai
 import numpy as np
-import blobconverter
+import cv2
 
 def onInitialize(oakDeviceOp, callCount):
-    r = blobconverter.from_zoo('deeplab_v3_mnv2_256x256', shaves=6, zoo_type="depthai")
+    r = op.TDBD.From_zoo('deeplab_v3_mnv2_256x256', shaves=6, zoo_type="depthai")
     if r.wait < 0:
         raise ValueError("Unable to download.")
     return r.wait
@@ -19,30 +19,40 @@ def onStart(oakDeviceOp):
     return
 
 def whileRunning(oakDeviceOp):
+    # Get the NN output from the input channels
+    nn_data = op('nn')
+    depth_data = op('depth')
+    
+    if nn_data is not None and depth_data is not None:
+        # Get NN output and reshape
+        layer1 = nn_data.numpyArray()
+        lay1 = layer1.reshape(*INPUT_SHAPE)
+        
+        # Get depth frame
+        depth_frame = depth_data.numpyArray()
+        depth_frame = cv2.resize(depth_frame, TARGET_SHAPE)
+        
+        # Create binary mask from segmentation
+        mask = (lay1 > 0).astype(np.uint8)
+        mask = cv2.resize(mask, TARGET_SHAPE)
+        
+        # Apply mask to depth
+        depth_overlay = depth_frame * mask
+        
+        # Send the masked depth frame to output
+        return depth_overlay
     return
 
 def onDone(oakDeviceOp):
     return
 
-def decode_deeplabv3p(output_tensor):
-    class_colors = [[0,0,0], [0,255,0]]
-    class_colors = np.asarray(class_colors, dtype=np.uint8)
-    output = output_tensor.reshape(*INPUT_SHAPE)
-    output_colors = np.take(class_colors, output, axis=0)
-    return output_colors
-
-def get_multiplier(output_tensor):
-    class_binary = [[0], [1]]
-    class_binary = np.asarray(class_binary, dtype=np.uint8)
-    output = output_tensor.reshape(*INPUT_SHAPE)
-    output_colors = np.take(class_binary, output, axis=0)
-    return output_colors
-
 def createPipeline(oakDeviceOp):
-    # Get the blob using blobconverter
-    blob = dai.OpenVINO.Blob(blobconverter.from_zoo(name="deeplab_v3_mnv2_256x256", zoo_type="depthai", shaves=6))
+    # Get the blob path from TDBD
+    blobPath = op.TDBD.From_zoo('deeplab_v3_mnv2_256x256', shaves=6, zoo_type="depthai").path
+    blob = dai.OpenVINO.Blob(blobPath)
     
     # Get input shape from the blob
+    global INPUT_SHAPE, TARGET_SHAPE
     INPUT_SHAPE = blob.networkInputs['Input'].dims[:2]
     TARGET_SHAPE = (400, 400)
     
@@ -99,7 +109,7 @@ def createPipeline(oakDeviceOp):
     detectionNN.out.link(xOutNN.input)
 
     xOutDepth = pipeline.create(dai.node.XLinkOut)
-    xOutDepth.setStreamName('depth')
+    xOutDepth.setStreamName('depth1')
     stereo.depth.link(xOutDepth.input)
 
     return pipeline
